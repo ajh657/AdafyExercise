@@ -1,0 +1,86 @@
+﻿@page "/view/{ID:int}"
+@using AdafyExercise.Data
+
+@using System.IO
+@using System.Linq
+@using Newtonsoft.Json
+@inject IHttpClientFactory ClientFactory
+@inject NavigationManager navManager
+
+@if (match == null)
+{
+	<p><em>Loading...</em></p>
+}
+else
+{
+	<div class="container">
+		<p>@match.MatchDate.ToString("G") Score: @match.HomeGoals - @match.AwayGoals </p>
+		<div class="row">
+			<div class="col ridge"><img class="pb-1" src="@match.HomeTeam.LogoUrl" /> <p>@match.HomeTeam.FullName</p></div>
+			<div class="col ridge"><img class="pb-1" src="@match.AwayTeam.LogoUrl" /> <p>@match.AwayTeam.FullName</p></div>
+		</div>
+	</div>
+
+	<table class="table">
+		<thead>
+			<tr>
+				<th></th>
+				<th>Event type</th>
+				<th>Event minute</th>
+				<th>Description</th>
+			</tr>
+		</thead>
+		<tbody>
+			@foreach (MatchEvent item in match.MatchEvents)
+			{
+				<tr>
+					<td><img src="@item.EventTypeIcon" /></td>
+					<td>@item.EventType</td>
+					<td>@item.EventMinute</td>
+					<td>@item.FullDescription</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}
+
+@code {
+	[Parameter]
+	public int ID { get; set; }
+
+	public Match match;
+
+	protected override async Task OnInitializedAsync()
+	{
+
+		HttpClient client = ClientFactory.CreateClient();
+		HttpResponseMessage message = await client.GetAsync("https://functionapp2018071101324.blob.core.windows.net/data/matches_latest.json");
+		if (message.IsSuccessStatusCode)
+		{
+
+			Match CurrentMatch = new Match();
+
+			using (Stream responseStream = await message.Content.ReadAsStreamAsync())
+			{
+				using (StreamReader reader = new StreamReader(responseStream))
+				{
+					string jsonData = reader.ReadToEnd();
+					Match[] matches = JsonConvert.DeserializeObject<Match[]>(jsonData);
+					foreach (Match item in matches)
+					{
+						if (item.Id == ID)
+						{
+							CurrentMatch = item;
+						}
+					}
+				}
+			}
+
+			if (CurrentMatch.Id != 0)
+			{
+				match = CurrentMatch;
+			}
+
+		}
+	}
+}

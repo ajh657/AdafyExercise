@@ -1,0 +1,127 @@
+﻿@page "/standings"
+
+@using AdafyExercise.Data
+
+@using System.IO
+@using System.Linq
+@using Newtonsoft.Json
+@inject IHttpClientFactory ClientFactory
+
+@if (standings == null)
+{
+	<p><em>Loading...</em></p>
+}
+else
+{
+	<h3>Standings</h3>
+
+	<table class="table ridge">
+		<thead>
+			<tr>
+				<th>Rank</th>
+				<th>Team name</th>
+				<th>Games played</th>
+				<th>Wins</th>
+				<th>Ties</th>
+				<th>Losses</th>
+				<th>Goals scored</th>
+				<th>Goals missed</th>
+				<th>Goal difference</th>
+				<th>Points</th>
+			</tr>
+		</thead>
+		<tbody>
+			@for (int i = 0; i < standings.Length; i++)
+			{
+				<tr>
+					<td>@i</td>
+					<td>@standings[i].team.FullName</td>
+					<td>@standings[i].gamesPlayed</td>
+					<td>@standings[i].Wins</td>
+					<td>@standings[i].Ties</td>
+					<td>@standings[i].Losses</td>
+					<td>@standings[i].GoalsScored</td>
+					<td>@standings[i].GoalsAgainst</td>
+					<td>@standings[i].GoalDiff</td>
+					<td>@standings[i].points</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}
+
+@code {
+
+	Standing[] standings;
+
+	protected override async Task OnInitializedAsync()
+	{
+
+		Dictionary<int, Standing> standing = new Dictionary<int, Standing>();
+
+		HttpClient client = ClientFactory.CreateClient();
+		HttpResponseMessage message = await client.GetAsync("https://functionapp2018071101324.blob.core.windows.net/data/matches_latest.json");
+
+		if (message.IsSuccessStatusCode)
+		{
+
+			using (Stream responseStream = await message.Content.ReadAsStreamAsync())
+			{
+				using (StreamReader reader = new StreamReader(responseStream))
+				{
+					string jsonData = reader.ReadToEnd();
+					Match[] matches = JsonConvert.DeserializeObject<Match[]>(jsonData);
+					foreach (Match item in matches)
+					{
+
+						if (!standing.ContainsKey(item.HomeTeam.Id)) standing.Add(item.HomeTeam.Id, new Standing(item.HomeTeam));
+						else standing[item.HomeTeam.Id].gamesPlayed += 1;
+
+						if (!standing.ContainsKey(item.AwayTeam.Id)) standing.Add(item.AwayTeam.Id, new Standing(item.AwayTeam));
+						else standing[item.AwayTeam.Id].gamesPlayed += 1;
+
+						standing[item.HomeTeam.Id].GoalsScored += item.HomeGoals;
+						standing[item.HomeTeam.Id].GoalsAgainst += item.AwayGoals;
+						standing[item.AwayTeam.Id].GoalsScored += item.AwayGoals;
+						standing[item.AwayTeam.Id].GoalsAgainst += item.HomeGoals;
+
+						if (item.HomeGoals > item.AwayGoals) standing[item.HomeTeam.Id].points += 3;
+						if (item.HomeGoals < item.AwayGoals) standing[item.AwayTeam.Id].points += 3;
+
+						if (item.HomeGoals == item.AwayGoals)
+						{
+							standing[item.HomeTeam.Id].points += 3;
+							standing[item.AwayTeam.Id].points += 3;
+						}
+
+						if (item.HomeGoals > item.AwayGoals) standing[item.HomeTeam.Id].Wins += 1;
+						if (item.HomeGoals < item.AwayGoals) standing[item.AwayTeam.Id].Wins += 1;
+
+						if (item.HomeGoals < item.AwayGoals) standing[item.HomeTeam.Id].Losses += 1;
+						if (item.HomeGoals > item.AwayGoals) standing[item.AwayTeam.Id].Losses += 1;
+
+						if (item.HomeGoals == item.AwayGoals)
+						{
+							standing[item.HomeTeam.Id].Ties += 1;
+							standing[item.AwayTeam.Id].Ties += 1;
+						}
+
+					}
+				}
+			}
+
+			foreach (KeyValuePair<int, Standing> item in standing)
+			{
+				item.Value.GoalDiff = item.Value.GoalsScored - item.Value.GoalsAgainst;
+			}
+
+			List<Standing> standingsList = new List<Standing>();
+
+			standingsList = standing.Values.ToList();
+
+			standingsList = standingsList.OrderBy(x => x.GoalsScored).ThenBy(x => x.GoalDiff).Reverse().ToList();
+
+			standings = standingsList.ToArray();
+		}
+	}
+}

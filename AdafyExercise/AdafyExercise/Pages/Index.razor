@@ -1,0 +1,63 @@
+﻿@page "/"
+
+@using AdafyExercise.Data
+@using System.IO
+@using Newtonsoft.Json
+@inject IHttpClientFactory ClientFactory
+
+@if (matches == null)
+{
+<p><em>Loading...</em></p>
+}
+else if (matches.Length > 0)
+{
+	<table class="table ridge">
+		<thead>
+			<tr>
+				<th>Date</th>
+				<th>Home team</th>
+				<th>Away team</th>
+				<th>Score</th>
+				<th>Details</th>
+			</tr>
+		</thead>
+		<tbody>
+			@foreach (Match item in matches)
+			{
+				<tr>
+					<td>@item.MatchDate.ToString("G")</td>
+					<td>@item.HomeTeam.FullName</td>
+					<td>@item.AwayTeam.FullName</td>
+					<td>@item.HomeGoals - @item.AwayGoals</td>
+					<td><a href="/view/@item.Id">View</a></td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}
+else
+{
+
+}
+
+@code {
+	private Match[] matches;
+
+	protected override async Task OnInitializedAsync()
+	{
+
+		HttpClient client = ClientFactory.CreateClient();
+		HttpResponseMessage message = await client.GetAsync("https://functionapp2018071101324.blob.core.windows.net/data/matches_latest.json");
+		if (message.IsSuccessStatusCode)
+		{
+			using (Stream responseStream = await message.Content.ReadAsStreamAsync())
+			{
+				using (StreamReader reader = new StreamReader(responseStream))
+				{
+					string jsonData = reader.ReadToEnd();
+					matches = JsonConvert.DeserializeObject<Match[]>(jsonData);
+				}
+			}
+		}
+	}
+}
